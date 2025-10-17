@@ -1,79 +1,96 @@
-print("PROGRAMA PARA SOLUCIONAR PROBLEMAS DE PROGRAMACIÓN LINEAL UTILIZANDO EL MÉTODO SIMPLEX")
-variables = int(input("¿Cuántas variables varibales tiene tu modelo? "))
-restricciones = int(input("Cuántas restricciones tiene tu modelo? "))
+print("Programa SIMPLEX para la resolución de problemas de programación lineal")
+variables = int(input("¿Cuántas variables tiene tu modelo? "))
+restricciones = int(input("¿Cuántas restricciones tiene tu modelo? "))
 
-encabezados = []                        #creamos los respectivos encabezados en x
-for i in range(1, variables + 1):
-    encabezados.append(f"x{i}")
-for i in range(1, restricciones + 1):
-    encabezados.append(f"s{i}")
-encabezados.append("Solución:")
+# Crear encabezados y laterales
+encabezados = [f"x{i}" for i in range(1, variables + 1)] + \
+              [f"s{i}" for i in range(1, restricciones + 1)] + \
+              ["Solución"]
+laterales = ["Z"] + [f"s{i}" for i in range(1, restricciones + 1)]
 
-laterales = ["Z"]                       #creamos los respectivos encabezados en y
-for i in range(1, restricciones + 1):
-    laterales.append(f"s{i}")
+tabla = []
 
+# Llenar la función objetivo (se asume maximización, ingresar con signo opuesto)
+print("\n-- Función Objetivo (ingresa los coeficientes de la función a maximizar) --")
+# Multiplica por -1 para preparar para el algoritmo simplex
+fila_z = [float(input(f"  x{i+1}: ")) * -1 for i in range(variables)]
+fila_z.extend([0.0] * (restricciones + 1))
+tabla.append(fila_z)
 
-tabla_inicial = []
-funcion_objetivo = []
-# (Se eliminan las listas 'funcion_objetivo' y 'restricciones' vacías ya que no se usan)
+# Llenar las restricciones
+print("\n-- Restricciones --")
+for i in range(restricciones):
+    print(f"\nRestricción {i+1}:")
+    fila = [float(input(f"  x{j+1}: ")) for j in range(variables)]
+    for j in range(restricciones):
+        fila.append(1.0 if i == j else 0.0)
+    fila.append(float(input("  Solución (lado derecho): ")))
+    tabla.append(fila)
 
-print("\nIngresa los valores de la tabla:")
+def imprimir_tabla():
+    print("\n" + "="*70)
+    print(f"{'':<6}" + "".join([f"{h:^8}" for h in encabezados]))
+    print("-"*(len(encabezados)*8 + 6))
+    for i, fila in enumerate(tabla):
+        print(f"{laterales[i]:<6}" + "".join([f"{v:^8.2f}" for v in fila]))
 
-# FILA DE LA FUNCIÓN OBJETIVO (Z)
-print(f"\nFila '{laterales[0]}':")
-fila_z = [] # Usamos fila_z para más claridad
-for j in range(len(encabezados)):
-        if j < variables:
-            # Pide coeficientes de variables originales (deberían ser negativos)
-            valor = float(input(f"  {encabezados[j]}    = "))
-            fila_z.append(valor)
-        elif j < len(encabezados) - 1:
-            # Las columnas de holgura (s) son 0 en la fila Z
-            fila_z.append(0.0)
+print("\nTABLA INICIAL")
+imprimir_tabla()
+
+# Inicia el bucle para iterar hasta que no haya negativos en la fila Z
+while min(tabla[0][:-1]) < 0:
+    
+    # Encontrar columna pivote
+    fila_z = tabla[0]
+    columna_piv = fila_z.index(min(fila_z[:-1]))
+
+    # Encontrar fila pivote
+    divisiones = []
+    for i in range(1, len(tabla)):
+        if tabla[i][columna_piv] > 0:
+            divisiones.append(tabla[i][-1] / tabla[i][columna_piv])
         else:
-            # Columna de Solución (lado derecho) es 0 en la fila Z
-            fila_z.append(0.0)
-tabla_inicial.append(fila_z)
-
-
-# FILAS DE LAS RESTRICCIONES (s1, s2, ...)
-for i in range(1, len(laterales)):  # i recorre las filas de s (1 para s1, 2 para s2, etc.)
-    fila = []
-    # La variable de holgura que corresponde a esta fila es s(i-1)
-    indice_s_propia = variables + (i - 1) 
+            divisiones.append(float('inf'))
     
-    print(f"\nFila '{laterales[i]}':")
-    for j in range(len(encabezados)):
-        if j < variables:  # variables originales (x1, x2, ...)
-            valor = float(input(f"  {encabezados[j]} = "))
-            fila.append(valor)
+    if all(c == float('inf') for c in divisiones):
+        print("El problema no tiene solución acotada.")
+        quit()
         
-        elif j == len(encabezados) - 1:  # columna de solución
-            valor = float(input("  Solución = "))
-            fila.append(valor)
-            
-        elif j >= variables and j < len(encabezados) - 1: # columnas de holgura (s1, s2, ...)
-            # Esta es la lógica corregida:
-            if j == indice_s_propia:  # Si la columna actual (j) es la columna de su propia variable de holgura
-                fila.append(1.0)      # Coloca un 1
-            else:                     # Si no es su propia columna de holgura
-                fila.append(0.0)      # Coloca un 0
-                
-    tabla_inicial.append(fila)
+    renglon_piv = divisiones.index(min(divisiones)) + 1
 
-    
+    # Actualizar la variable de la base
+    laterales[renglon_piv] = encabezados[columna_piv]
 
-print("\nTABLA INICIAL:\n")
-print("       ", end="")
-for e in encabezados:
-    print(f"{e:^7}", end="")
-print()
+    # <-- CORRECCIÓN 1: SE AÑADE EL PASO DE NORMALIZACIÓN FALTANTE -->
+    # Primero, se normaliza el renglón pivote para que el elemento pivote sea 1.
+    elemento_piv = tabla[renglon_piv][columna_piv]
+    for j in range(len(tabla[renglon_piv])):
+        tabla[renglon_piv][j] /= elemento_piv
 
+    # <-- CORRECCIÓN 2: LA SIGUIENTE SECCIÓN SE INDENTA PARA ESTAR DENTRO DEL 'WHILE' -->
+    # Ahora se hacen ceros en el resto de la columna pivote.
+    # Usamos 'i' como el índice del renglón.
+    for i in range(len(tabla)):
+        # Nos aseguramos de NO modificar el renglón pivote, que ya está listo.
+        if i != renglon_piv:
+            coef_temp_column = tabla[i][columna_piv]
+            # Usamos 'j' como el índice de la columna para recorrer las celdas.
+            for j in range(len(tabla[i])):
+                valor_renglon_pivote = tabla[renglon_piv][j]
+                valor_actual = tabla[i][j]
+                # Aplicamos la fórmula y actualizamos la celda.
+                tabla[i][j] = valor_actual - (coef_temp_column * valor_renglon_pivote)
 
-for i in range(len(laterales)):
-    print(f"{laterales[i]:<5} |", end=" ")
-    for valor in tabla_inicial[i]:
-        # Usamos .2f para una mejor visualización de los decimales
-        print(f"{valor:^7.2f}", end="") 
-    print()
+    imprimir_tabla()
+
+# Esto se imprimirá solo cuando el bucle 'while' termine correctamente
+print("\n\n========= SOLUCIÓN ÓPTIMA ENCONTRADA ==========")
+print(f"Valor máximo de Z: {tabla[0][-1]:.2f}")
+print("Valores de las variables:")
+
+for var in encabezados[:-1]:
+    if var in laterales:
+        idx = laterales.index(var)
+        print(f"  {var} = {tabla[idx][-1]:.2f}")
+    else:
+        print(f"  {var} = 0.00")
